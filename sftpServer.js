@@ -1,11 +1,14 @@
+/* jshint esversion: 6 */
+/* jshint node: true */
 'use strict';
 
-const constants = require('constants');
 const fs = require('fs');
+const path = require('path');
+
+const constants = require('constants');
 const ssh2 = require('ssh2');
 const OPEN_MODE = ssh2.SFTP_OPEN_MODE;
 const STATUS_CODE = ssh2.SFTP_STATUS_CODE;
-const path = require('path');
 let debug = require('debug')('test: sftpServer');
 const DEBUG_NOOP = function(msg) {};
 
@@ -31,6 +34,7 @@ exports.sftpServer = (opts, fn) => {
       debug('Client authenticated');
       client.on('session', (accept, reject) => {
         const session = accept();
+
         session.on('sftp', (accept, reject) => {
           debug('Client SFTP session');
           let openFiles = {};
@@ -43,6 +47,7 @@ exports.sftpServer = (opts, fn) => {
             debug(handle);
             sftpStream.handle(reqid, handle);
           });
+
           sftpStream.on('OPEN', (reqid, filename, flags, attrs) => {
             debug('Open');
             const handle = new Buffer(4);
@@ -51,6 +56,7 @@ exports.sftpServer = (opts, fn) => {
             sftpStream.handle(reqid, handle);
             debug('Opening file for read');
           });
+
           sftpStream.on('WRITE', (reqid, handle, offset, data) => {
             if (handle.length !== 4 || !openFiles[handle.readUInt32BE(0, true)])
               return sftpStream.status(reqid, STATUS_CODE.FAILURE);
@@ -58,19 +64,18 @@ exports.sftpServer = (opts, fn) => {
             const inspected = require('util').inspect(data);
             debug('Write to file at offset %d: %s', offset, inspected);
           });
+
           sftpStream.on('READ', (reqid, handle, offset, length) => {
             if (handle.length !== 4 || !openFiles[handle.readUInt32BE(0, true)])
               return sftpStream.status(reqid, STATUS_CODE.FAILURE);
-            let state = {};
-            if (state.read)
+            if (offset > handle.length)
               sftpStream.status(reqid, STATUS_CODE.EOF);
             else {
-              debug(state);
-              state.read = true;
               sftpStream.data(reqid, 'bar');
               debug('Read from file at offset %d, length %d', offset, length);
             }
           });
+
           sftpStream.on('READDIR', (reqid, handle) => {
             debug('trying to list');
             debug(calledReadDir);
@@ -85,6 +90,7 @@ exports.sftpServer = (opts, fn) => {
             }
             else sftpStream.status(reqid, STATUS_CODE.EOF);
           });
+
           sftpStream.on('REALPATH', (reqid, path) => {
             const name = [{
               filename: '/tmp/foo.txt',
@@ -93,15 +99,20 @@ exports.sftpServer = (opts, fn) => {
             }];
             sftpStream.name(reqid, name);
           });
+
           sftpStream.on('STAT', onSTAT);
+
           sftpStream.on('LSTAT', onSTAT);
+
           sftpStream.on('CLOSE', (reqid, handle) => {
             sftpStream.status(reqid, STATUS_CODE.OK);
             debug('Closing file');
           });
+
           sftpStream.on('REMOVE', (reqid, path) => {
             sftpStream.status(reqid, STATUS_CODE.OK);
           });
+
           sftpStream.on('RENAME', (reqid, oldPath, newPath) => {
             sftpStream.status(reqid, STATUS_CODE.OK);
           });
