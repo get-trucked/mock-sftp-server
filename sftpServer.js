@@ -41,9 +41,10 @@ exports.sftpServer = (opts, fn) => {
           let handleCount = 0;
           const sftpStream = accept();
           let calledReadDir = false;
-          sftpStream.on('OPENDIR', (reqid, path) => {
-            debug(path);
-            const handle = new Buffer(path);
+
+          sftpStream.on('OPENDIR', (reqid, dirPath) => {
+            debug(dirPath);
+            const handle = new Buffer(dirPath);
             debug(handle);
             sftpStream.handle(reqid, handle);
           });
@@ -81,22 +82,23 @@ exports.sftpServer = (opts, fn) => {
             debug(calledReadDir);
             debug(handle);
             debug(handle.toString());
-            const path = handle.toString();
+            const dirPath = handle.toString();
             if (!calledReadDir) {
               calledReadDir = true;
-              iterateFixture(listing, path, list => {
+              iterateFixture(listing, dirPath, list => {
                 sftpStream.name(reqid, list);
               });
             }
             else sftpStream.status(reqid, STATUS_CODE.EOF);
           });
 
-          sftpStream.on('REALPATH', (reqid, path) => {
-            const name = [{
-              filename: '/tmp/foo.txt',
-              longname: '-rwxrwxrwx 1 foo foo 3 Dec 8 2009 foo.txt',
-              attrs: {}
-            }];
+          sftpStream.on('REALPATH', (reqid, dirPath) => {
+              let workingDir = '/';
+              let name = [{
+                filename: path.normalize(`${workingDir}${dirPath}`),
+                longname: 'drwxr-xr-x 1 foo foo 3 Dec 8 2009 /',
+                attrs: {}
+              }];
             sftpStream.name(reqid, name);
           });
 
